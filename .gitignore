@@ -1,0 +1,29 @@
+# Data
+data/
+
+# Model checkpoints
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+# Images
+images/
+
+# Outputs
+outputs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
