@@ -1,11 +1,14 @@
 # Data
 data/
 
-# Model checkpoints
-checkpoints/
-*.pth
-*.pt
-*.ckpt
+# # Model checkpoints
+# checkpoints/
+# *.pth
+# *.pt
+# *.ckpt
+
+# Ignore only log files inside checkpoints
+checkpoints/*.json
 
 # Images
 images/

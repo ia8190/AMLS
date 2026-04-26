@@ -1,6 +1,6 @@
 # Adversarial Machine Learning System (AMLS)
 
-##  Overview
+## Overview
 
 This project demonstrates the vulnerability of Convolutional Neural Networks (CNNs) to adversarial attacks and evaluates adversarial training as a defence mechanism.
 
@@ -8,94 +8,144 @@ Using the CIFAR-10 dataset, the system shows how small, imperceptible perturbati
 
 ---
 
-##  Objectives
+## Objectives
 
-* Train a baseline CNN on CIFAR-10
-* Evaluate performance on clean data
-* Generate adversarial examples (FGSM, PGD)
-* Assess robustness under attack
-* Implement adversarial training
-* Compare standard vs defended models
+- Train a baseline CNN on CIFAR-10  
+- Evaluate performance on clean data  
+- Generate adversarial examples (FGSM, PGD)  
+- Assess robustness under attack  
+- Implement adversarial training  
+- Compare standard vs defended models  
 
 ---
 
-##  Project Structure
+## Project Structure
 
-```
+
 ADV_ML_SYS/
-│── scripts/
-│   ├── eval/
-│   ├── train/
-│   ├── visual/
+│── checkpoints/ # Pre-trained model weights
 │
-│── models/
-│── images/
-│── predict_image.py
-```
+│── scripts/
+│ ├── train/ # Training scripts (baseline & adversarial)
+│ ├── eval/ # Evaluation scripts (clean, FGSM, PGD)
+│ ├── visual/ # Visualisation & attack demos
+│
+│── models/ # CNN architecture
+│── images/ # Custom test images
+│── outputs/ # Generated results (optional)
+│
+│── predict_image.py # Run prediction + attack demo
+│── README.md
+│── .gitignore
+
 
 ---
 
-##  Usage
+## Pre-trained Models (Recommended)
 
-### Train model
+Pre-trained model checkpoints are included in the `checkpoints/` folder.
 
-```
+This allows users to:
+- Run predictions immediately  
+- Evaluate adversarial attacks without retraining  
+- Compare baseline vs defended models  
+
+### Run demo directly
+
+
+python predict_image.py
+
+
+---
+
+## Installation
+
+
+git clone https://github.com/ia8190/AMLS.git
+
+cd AMLS
+pip install -r requirements.txt
+
+
+---
+
+## Usage
+
+### Test your own image (recommended)
+
+
+python predict_image.py
+
+
+- Place your image inside the `images/` folder  
+- Update the image path in `predict_image.py` if needed  
+
+---
+
+### (Optional) Train models
+
+
 python scripts/train/train_cifar10_cnn.py
-```
 
-### Evaluate
 
-```
+Adversarial training:
+
+
+python scripts/train/train_fgsm_adv.py
+python scripts/train/train_pgd_adv.py
+
+
+---
+
+### Evaluate models
+
+
 python scripts/eval/eval_clean.py
-```
 
-### Run attacks
 
-```
+---
+
+### Run adversarial attacks
+
+
 python scripts/eval/fgsm_eval.py
 python scripts/eval/pgd_eval.py
-```
 
-### Test your own image
-
-```
-python predict_image.py --image images/test.png
-```
 
 ---
 
-##  Custom Images
+## Custom Images
 
-* Craete folder `images/` 
-* Place images inside `images/`
-* Recommended size: 32×32
-* Formats: PNG, JPG
-
----
-
-##  Results
-
-* Strong performance on clean data
-* Significant degradation under FGSM & PGD
-* PGD is more effective
-* Adversarial training improves robustness
+- Place images inside the `images/` folder  
+- Recommended size: 32×32  
+- Supported formats: PNG, JPG  
 
 ---
 
-##  Key Insight
+## Results
 
-Neural networks can be highly confident yet fragile. Robustness must be explicitly addressed in real-world ML systems.
-
----
-
-##  References
-
-* Goodfellow et al., 2014
-* Madry et al., 2018
+- Strong performance on clean data  
+- Significant degradation under FGSM and PGD attacks  
+- PGD is more effective than FGSM  
+- Adversarial training improves robustness  
 
 ---
 
-##  Author
+## Key Insight
 
-Isihaq Abass
-TII
+Neural networks can be highly confident yet fragile. Robustness must be explicitly addressed in real-world machine learning systems.
+
+---
+
+## References
+
+- Goodfellow et al., *Explaining and Harnessing Adversarial Examples*, 2014  
+- Madry et al., *Towards Deep Learning Models Resistant to Adversarial Attacks*, 2018  
+
+---
+
+## Author
+
+Isihaq Abass<br>
+Per Perseverantiam...<br>
+

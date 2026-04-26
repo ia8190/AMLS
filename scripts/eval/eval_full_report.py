@@ -9,14 +9,14 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 
 
-# ---------------- Labels ----------------
+# Labels
 classes = [
     "airplane", "automobile", "bird", "cat", "deer",
     "dog", "frog", "horse", "ship", "truck"
 ]
 
 
-# ---------------- Model ----------------
+# Model
 class CIFAR_CNN(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
@@ -36,7 +36,7 @@ class CIFAR_CNN(nn.Module):
         return self.classifier(self.features(x))
 
 
-# ---------------- Utils ----------------
+# Utils 
 def find_root(start: Path) -> Path:
     p = start
     while p != p.parent:
@@ -128,7 +128,7 @@ def pgd_attack_norm(model, x_norm, y, eps_px, alpha_px, steps, mean, std, random
     return x_adv
 
 def confusion_matrix_from_preds(y_true, y_pred, num_classes=10):
-    # y_true, y_pred: (N,) int64 tensors on CPU
+    # y_true, y_pred (N,) int64 tensors on CPU
     idx = (y_true * num_classes + y_pred).to(torch.int64)
     cm = torch.bincount(idx, minlength=num_classes*num_classes).reshape(num_classes, num_classes)
     return cm

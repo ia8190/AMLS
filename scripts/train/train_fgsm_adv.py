@@ -132,13 +132,13 @@ def main():
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
 
-            # Decide how many in-batch to convert to adversarial
+            # Decide how many in batch to convert to adversarial
             if ADV_RATIO > 0:
                 n_adv = int(x.size(0) * ADV_RATIO)
             else:
                 n_adv = 0
 
-            # Build batch: first part clean, second part adversarial
+            # Build batch first part clean second part adversarial
             if n_adv > 0:
                 x_clean, y_clean = x[:-n_adv], y[:-n_adv]
                 x_part,  y_part  = x[-n_adv:], y[-n_adv:]
