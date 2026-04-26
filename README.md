@@ -21,7 +21,7 @@ Using the CIFAR-10 dataset, the system shows how small, imperceptible perturbati
 
 ## Project Structure
 
-
+```
 ADV_ML_SYS/
 │── checkpoints/ # Pre-trained model weights
 │
@@ -37,9 +37,9 @@ ADV_ML_SYS/
 │── predict_image.py # Run prediction + attack demo
 │── README.md
 │── .gitignore
+```
 
 
----
 
 ## Pre-trained Models (Recommended)
 
@@ -63,7 +63,7 @@ python predict_image.py
 
 git clone https://github.com/ia8190/AMLS.git
 
-cd AMLS
+cd AMLS <br>
 pip install -r requirements.txt
 
 
@@ -73,12 +73,9 @@ pip install -r requirements.txt
 
 ### Test your own image (recommended)
 
-
-python predict_image.py
-
-
+- Create `images/` folder  
 - Place your image inside the `images/` folder  
-- Update the image path in `predict_image.py` if needed  
+- Update the image path in script files if needed  
 
 ---
 
@@ -91,7 +88,7 @@ python scripts/train/train_cifar10_cnn.py
 Adversarial training:
 
 
-python scripts/train/train_fgsm_adv.py
+python scripts/train/train_fgsm_adv.py<br>  
 python scripts/train/train_pgd_adv.py
 
 
@@ -108,7 +105,7 @@ python scripts/eval/eval_clean.py
 ### Run adversarial attacks
 
 
-python scripts/eval/fgsm_eval.py
+python scripts/eval/fgsm_eval.py  
 python scripts/eval/pgd_eval.py
 
 
@@ -147,5 +144,5 @@ Neural networks can be highly confident yet fragile. Robustness must be explicit
 ## Author
 
 Isihaq Abass<br>
-Per Perseverantiam...<br>
+*Per Perseverantiam...*<br>
 
