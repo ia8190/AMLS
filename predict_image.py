@@ -3,6 +3,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image
 import matplotlib.pyplot as plt
+from utils.image_args import get_image_path
 
 classes = [
     'airplane','automobile','bird','cat','deer',
@@ -84,4 +85,11 @@ def predict_image(image_path, threshold=50.0, show_image=True):
         plt.show()
 
 if __name__ == "__main__":
-    predict_image("images/brush.jpg", threshold=50.0, show_image=True)
+    import sys
+
+    image_path = "images/deer.webp"  # default image
+
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]  # image selected from main.py
+
+    predict_image(image_path, threshold=50.0, show_image=True)

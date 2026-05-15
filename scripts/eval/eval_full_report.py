@@ -270,6 +270,8 @@ def eval_mode(
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Running full evaluation report...")
+    print("May take several minutes depending on hardware.")
     print("Device:", device)
 
     ROOT = find_root(Path(__file__).resolve())

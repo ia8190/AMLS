@@ -1,3 +1,4 @@
+import sys
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
@@ -49,17 +50,25 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
-
     ROOT = Path(__file__).resolve().parents[2]
 
-    IMAGE_PATH = ROOT / "images" / "birds.jpg"
-    CKPT_PATH  = ROOT / "checkpoints" / "cnn_cifar10_best.pt"
+    default_image = ROOT / "images" / "birds.jpg"
 
-    EPS = 8 / 255
+    if len(sys.argv) > 1:
+        IMAGE_PATH = Path(sys.argv[1])
+    else:
+        IMAGE_PATH = default_image
+
+    CKPT_PATH = ROOT / "checkpoints" / "cnn_cifar10_best.pt"
+    if len(sys.argv) > 2:
+        EPS = float(sys.argv[2]) / 255
+    else:
+        EPS = 8 / 255
     CONF_THRESHOLD = 50.0
     SAVE_FIG = False
     SAVE_PATH = ROOT / "fgsm_external_demo_top3.png"
-    # -----------------------------------------
+
+    print(f"Using image: {IMAGE_PATH}")
 
     mean = (0.4914, 0.4822, 0.4465)
     std  = (0.2470, 0.2435, 0.2616)
@@ -70,17 +79,14 @@ def main():
         transforms.Normalize(mean, std),
     ])
 
-    # Load model
     model = CIFAR_CNN().to(device)
     ckpt = torch.load(CKPT_PATH, map_location=device)
     model.load_state_dict(ckpt["model_state"])
     model.eval()
 
-    # Load image
     pil_img = Image.open(IMAGE_PATH).convert("RGB")
     x = to_model(pil_img).unsqueeze(0).to(device)
 
-    # Clean prediction
     with torch.no_grad():
         clean_probs = torch.softmax(model(x), dim=1)[0]
         clean_conf, clean_pred = clean_probs.max(dim=0)
@@ -91,10 +97,8 @@ def main():
 
     y = torch.tensor([clean_pred.item()]).to(device)
 
-    # FGSM attack
     x_adv = fgsm_attack(model, x, y, EPS)
 
-    # Adversarial prediction
     with torch.no_grad():
         adv_probs = torch.softmax(model(x_adv), dim=1)[0]
         adv_conf, adv_pred = adv_probs.max(dim=0)
@@ -103,7 +107,6 @@ def main():
     adv_label = classes[adv_pred.item()] if adv_conf_pct >= CONF_THRESHOLD else "N/A"
     adv_top3 = top3_string(adv_probs)
 
-    # Plot
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
     axes[0].imshow(pil_img)
