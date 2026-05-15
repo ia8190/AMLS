@@ -30,3 +30,6 @@ venv/
 
 # System
 .DS_Store
+
+# Custom trained 
+custom_train/
