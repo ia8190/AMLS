@@ -2,7 +2,6 @@ from pathlib import Path
 import json
 import argparse
 import re
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,22 +9,26 @@ import torchvision
 import torchvision.transforms as transforms
 
 
+# cifar-10 class names
 classes = [
     'airplane', 'automobile', 'bird', 'cat', 'deer',
     'dog', 'frog', 'horse', 'ship', 'truck'
 ]
 
 
+# cnn model used for cifar-10
 class CIFAR_CNN(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
 
+        # feature layers
         self.features = nn.Sequential(
             nn.Conv2d(3, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
         )
 
+        # classification layers
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(128 * 4 * 4, 256), nn.ReLU(),
@@ -33,30 +36,31 @@ class CIFAR_CNN(nn.Module):
             nn.Linear(256, num_classes),
         )
 
+    # forward pass
     def forward(self, x):
         return self.classifier(self.features(x))
 
 
+# make model name safe for saving
 def safe_name(name):
     name = name.strip()
     name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+
     return name if name else "custom_pgd_adv"
 
 
+# read command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="Train PGD adversarial CNN on CIFAR-10")
-
     parser.add_argument("--name", type=str, default="custom_pgd_adv")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=5e-4)
-
     parser.add_argument("--eps", type=float, default=8.0, help="PGD epsilon value out of 255")
     parser.add_argument("--alpha", type=float, default=2.0, help="PGD alpha value out of 255")
     parser.add_argument("--steps", type=int, default=7)
     parser.add_argument("--adv-weight", type=float, default=0.5)
-
     parser.add_argument(
         "--no-random-start",
         action="store_true",
@@ -72,6 +76,7 @@ def parse_args():
     return parser.parse_args()
 
 
+# find the project root folder
 def find_root(start: Path) -> Path:
     p = start
 
@@ -84,6 +89,7 @@ def find_root(start: Path) -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+# calculate clean accuracy
 @torch.no_grad()
 def accuracy(model, loader, device):
     model.eval()
@@ -103,6 +109,7 @@ def accuracy(model, loader, device):
     return correct / total
 
 
+# create a pgd adversarial batch in normalised space
 def pgd_attack_normalized_space(
     model,
     x_norm,
@@ -115,20 +122,21 @@ def pgd_attack_normalized_space(
     random_start=True
 ):
     model.eval()
-
     device = x_norm.device
-
     mean_t = torch.tensor(mean, device=device).view(1, 3, 1, 1)
     std_t = torch.tensor(std, device=device).view(1, 3, 1, 1)
 
+    # convert pixel values to normalised space
     eps = eps_px / std_t
     alpha = alpha_px / std_t
 
+    # valid normalised image range
     x_min = (0.0 - mean_t) / std_t
     x_max = (1.0 - mean_t) / std_t
 
     x_orig = x_norm.detach()
 
+    # start from random noise near the image
     if random_start:
         x_adv = x_orig + torch.empty_like(x_orig).uniform_(-1.0, 1.0) * eps
         x_adv = torch.max(torch.min(x_adv, x_orig + eps), x_orig - eps)
@@ -138,22 +146,21 @@ def pgd_attack_normalized_space(
 
     loss_fn = nn.CrossEntropyLoss()
 
+    # apply pgd steps
     for _ in range(steps):
         x_adv.requires_grad_(True)
-
         logits = model(x_adv)
-
         loss = loss_fn(logits, y)
-
         model.zero_grad(set_to_none=True)
-
         loss.backward()
 
         with torch.no_grad():
             x_adv = x_adv + alpha * x_adv.grad.sign()
 
+            # keep image inside epsilon range
             x_adv = torch.max(torch.min(x_adv, x_orig + eps), x_orig - eps)
 
+            # keep image inside valid range
             x_adv = torch.max(torch.min(x_adv, x_max), x_min)
 
         x_adv = x_adv.detach()
@@ -161,6 +168,7 @@ def pgd_attack_normalized_space(
     return x_adv
 
 
+# evaluate model under pgd attack
 def pgd_eval_accuracy(
     model,
     loader,
@@ -181,6 +189,7 @@ def pgd_eval_accuracy(
         x = x.to(device)
         y = y.to(device)
 
+        # create pgd examples
         x_adv = pgd_attack_normalized_space(
             model,
             x,
@@ -203,10 +212,13 @@ def pgd_eval_accuracy(
 
 
 def main():
+    # get settings from command line
     args = parse_args()
 
+    # clean model name
     args.name = safe_name(args.name)
 
+    # check parameter ranges
     if args.eps < 0 or args.eps > 255:
         raise ValueError("Epsilon must be between 0 and 255.")
 
@@ -219,23 +231,25 @@ def main():
     if args.adv_weight < 0 or args.adv_weight > 1:
         raise ValueError("Adversarial weight must be between 0 and 1.")
 
+    # use gpu if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
     ROOT = find_root(Path(__file__).resolve())
 
+    # paths
     DATA_DIR = ROOT / "data"
-
     SAVE_DIR = ROOT / "custom_train"
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
-
     BASELINE_CKPT = ROOT / "checkpoints" / "cnn_cifar10_best.pt"
 
+    # training settings
     EPOCHS = args.epochs
     BATCH_SIZE = args.batch_size
     LR = args.lr
     WEIGHT_DECAY = args.weight_decay
 
+    # attack settings
     EPS_PX = args.eps / 255
     ALPHA_PX = args.alpha / 255
     STEPS = args.steps
@@ -255,14 +269,17 @@ def main():
     print(f"Adversarial weight: {ADV_WEIGHT}")
     print(f"Start from baseline: {not args.from_scratch}")
 
+    # cifar-10 normalisation values
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.2470, 0.2435, 0.2616)
 
+    # data transform
     tf = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ])
 
+    # load cifar-10 training set
     trainset = torchvision.datasets.CIFAR10(
         root=str(DATA_DIR),
         train=True,
@@ -270,6 +287,7 @@ def main():
         transform=tf
     )
 
+    # load cifar-10 test set
     testset = torchvision.datasets.CIFAR10(
         root=str(DATA_DIR),
         train=False,
@@ -277,6 +295,7 @@ def main():
         transform=tf
     )
 
+    # training data loader
     train_loader = torch.utils.data.DataLoader(
         trainset,
         batch_size=BATCH_SIZE,
@@ -285,6 +304,7 @@ def main():
         pin_memory=torch.cuda.is_available()
     )
 
+    # test data loader
     test_loader = torch.utils.data.DataLoader(
         testset,
         batch_size=BATCH_SIZE,
@@ -293,8 +313,10 @@ def main():
         pin_memory=torch.cuda.is_available()
     )
 
+    # create model
     model = CIFAR_CNN().to(device)
 
+    # optionally load baseline weights
     if not args.from_scratch and BASELINE_CKPT.exists():
         ckpt = torch.load(BASELINE_CKPT, map_location=device)
 
@@ -307,9 +329,11 @@ def main():
 
     elif not args.from_scratch:
         print("Baseline checkpoint not found; training from scratch.")
+
     else:
         print("Training from scratch.")
 
+    # optimiser
     optimizer = optim.Adam(
         model.parameters(),
         lr=LR,
@@ -321,10 +345,12 @@ def main():
     best_pgd_acc = -1.0
     history = []
 
+    # save paths
     last_path = SAVE_DIR / f"{args.name}_last.pt"
     best_path = SAVE_DIR / f"{args.name}_best.pt"
     hist_path = SAVE_DIR / f"{args.name}_history.json"
 
+    # training loop
     for epoch in range(1, EPOCHS + 1):
         model.train()
 
@@ -336,6 +362,7 @@ def main():
             x = x.to(device)
             y = y.to(device)
 
+            # create pgd examples for training
             x_adv = pgd_attack_normalized_space(
                 model,
                 x,
@@ -349,35 +376,30 @@ def main():
             )
 
             model.train()
-
             optimizer.zero_grad(set_to_none=True)
-
             logits_clean = model(x)
             logits_adv = model(x_adv)
-
             loss_clean = loss_fn(logits_clean, y)
             loss_adv = loss_fn(logits_adv, y)
 
+            # mix clean and adversarial loss
             loss = (1.0 - ADV_WEIGHT) * loss_clean + ADV_WEIGHT * loss_adv
-
             loss.backward()
-
             optimizer.step()
-
             running_loss += loss.item() * y.size(0)
 
             with torch.no_grad():
                 pred_clean = logits_clean.argmax(1)
-
                 correct_clean += (pred_clean == y).sum().item()
-
                 total += y.numel()
 
         train_loss = running_loss / total
         train_acc = correct_clean / total
 
+        # evaluate clean accuracy
         clean_acc = accuracy(model, test_loader, device)
 
+        # evaluate pgd accuracy
         pgd_acc = pgd_eval_accuracy(
             model,
             test_loader,
@@ -390,6 +412,7 @@ def main():
             random_start=RANDOM_START
         )
 
+        # store epoch results
         row = {
             "epoch": epoch,
             "train_loss": round(train_loss, 6),
@@ -413,6 +436,7 @@ def main():
             f"test_clean={clean_acc*100:5.1f}% test_pgd={pgd_acc*100:5.1f}%"
         )
 
+        # create checkpoint data
         checkpoint = {
             "model_name": args.name,
             "model_type": "pgd_adversarial",
@@ -446,13 +470,17 @@ def main():
             }
         }
 
+        # save last checkpoint
         torch.save(checkpoint, last_path)
 
+        # save best checkpoint
         if pgd_acc > best_pgd_acc:
             best_pgd_acc = pgd_acc
             torch.save(checkpoint, best_path)
+
             print(f"Saved BEST (by PGD acc): {best_path}")
 
+        # save training history
         hist_path.write_text(json.dumps(history, indent=2))
 
     print("\nDone.")
@@ -462,5 +490,6 @@ def main():
     print("History:", hist_path)
 
 
+# start the script
 if __name__ == "__main__":
     main()

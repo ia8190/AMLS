@@ -3,7 +3,6 @@ import json
 import time
 import argparse
 import re
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,14 +10,19 @@ import torchvision
 import torchvision.transforms as transforms
 
 
+# cnn model used for cifar-10
 class CIFAR_CNN(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
+
+        # feature layers
         self.features = nn.Sequential(
             nn.Conv2d(3, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
         )
+
+        # classification layers
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(128 * 4 * 4, 256), nn.ReLU(),
@@ -26,16 +30,19 @@ class CIFAR_CNN(nn.Module):
             nn.Linear(256, num_classes),
         )
 
+    # forward pass
     def forward(self, x):
         return self.classifier(self.features(x))
 
 
+# make model name safe for saving
 def safe_name(name):
     name = name.strip()
     name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
     return name if name else "custom_fgsm_adv"
 
 
+# read command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="Train FGSM adversarial CNN on CIFAR-10")
 
@@ -50,13 +57,11 @@ def parse_args():
     return parser.parse_args()
 
 
+# create an fgsm adversarial batch
 def fgsm_attack(model, x, y, eps):
     x_adv = x.detach().clone().requires_grad_(True)
-
     loss = nn.CrossEntropyLoss()(model(x_adv), y)
-
     model.zero_grad(set_to_none=True)
-
     loss.backward()
 
     with torch.no_grad():
@@ -65,6 +70,7 @@ def fgsm_attack(model, x, y, eps):
     return x_adv.detach()
 
 
+# evaluate model on test data
 @torch.no_grad()
 def evaluate(model, loader, device):
     model.eval()
@@ -78,7 +84,6 @@ def evaluate(model, loader, device):
 
         logits = model(x)
         pred = logits.argmax(dim=1)
-
         correct += (pred == y).sum().item()
         total += y.size(0)
 
@@ -86,26 +91,34 @@ def evaluate(model, loader, device):
 
 
 def main():
+    # get settings from command line
     args = parse_args()
 
+    # clean model name
     args.name = safe_name(args.name)
 
+    # check epsilon range
     if args.eps < 0 or args.eps > 255:
         raise ValueError("Epsilon must be between 0 and 255.")
 
+    # check adversarial ratio range
     if args.adv_ratio < 0 or args.adv_ratio > 1:
         raise ValueError("Adversarial ratio must be between 0 and 1.")
 
+    # use gpu if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
     ROOT = Path(__file__).resolve().parents[2]
 
+    # create custom model folder
     SAVE_DIR = ROOT / "custom_train"
     SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
+    # convert epsilon from 0-255 scale
     EPS = args.eps / 255
 
+    # save paths
     SAVE_BEST_AS = SAVE_DIR / f"{args.name}_best.pt"
     SAVE_LAST_AS = SAVE_DIR / f"{args.name}_last.pt"
     LOG_PATH = SAVE_DIR / f"{args.name}_log.json"
@@ -119,9 +132,11 @@ def main():
     print(f"Epsilon: {args.eps}/255")
     print(f"Adversarial ratio: {args.adv_ratio}")
 
+    # cifar-10 normalisation values
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.2470, 0.2435, 0.2616)
 
+    # training transform with augmentation
     train_tf = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
@@ -129,11 +144,13 @@ def main():
         transforms.Normalize(mean, std),
     ])
 
+    # test transform without augmentation
     test_tf = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ])
 
+    # load cifar-10 training set
     train_set = torchvision.datasets.CIFAR10(
         root=str(ROOT / "data"),
         train=True,
@@ -141,6 +158,7 @@ def main():
         transform=train_tf
     )
 
+    # load cifar-10 test set
     test_set = torchvision.datasets.CIFAR10(
         root=str(ROOT / "data"),
         train=False,
@@ -148,6 +166,7 @@ def main():
         transform=test_tf
     )
 
+    # training data loader
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=args.batch_size,
@@ -156,6 +175,7 @@ def main():
         pin_memory=torch.cuda.is_available()
     )
 
+    # test data loader
     test_loader = torch.utils.data.DataLoader(
         test_set,
         batch_size=args.batch_size,
@@ -164,8 +184,10 @@ def main():
         pin_memory=torch.cuda.is_available()
     )
 
+    # create model
     model = CIFAR_CNN().to(device)
 
+    # optimiser
     opt = optim.Adam(
         model.parameters(),
         lr=args.lr,
@@ -177,9 +199,9 @@ def main():
     best_acc = 0.0
     history = []
 
+    # training loop
     for epoch in range(1, args.epochs + 1):
         start = time.time()
-
         model.train()
 
         running_loss = 0.0
@@ -190,6 +212,7 @@ def main():
             x = x.to(device)
             y = y.to(device)
 
+            # choose part of batch for adversarial examples
             n_adv = int(x.size(0) * args.adv_ratio)
 
             if n_adv > 0:
@@ -199,8 +222,10 @@ def main():
                 x_part = x[-n_adv:]
                 y_part = y[-n_adv:]
 
+                # create fgsm examples
                 x_adv = fgsm_attack(model, x_part, y_part, EPS)
 
+                # mix clean and adversarial data
                 x_mix = torch.cat([x_clean, x_adv], dim=0)
                 y_mix = torch.cat([y_clean, y_part], dim=0)
 
@@ -209,27 +234,20 @@ def main():
                 y_mix = y
 
             opt.zero_grad(set_to_none=True)
-
             logits = model(x_mix)
-
             loss = loss_fn(logits, y_mix)
-
             loss.backward()
-
             opt.step()
-
             running_loss += loss.item() * y_mix.size(0)
-
             pred = logits.argmax(dim=1)
-
             correct += (pred == y_mix).sum().item()
-
             total += y_mix.size(0)
 
         train_loss = running_loss / total
         train_acc = correct / total
-        test_acc = evaluate(model, test_loader, device)
 
+        # test model after each epoch
+        test_acc = evaluate(model, test_loader, device)
         seconds = time.time() - start
 
         print(
@@ -240,6 +258,7 @@ def main():
             f"{seconds:.1f}s"
         )
 
+        # create checkpoint data
         checkpoint = {
             "model_name": args.name,
             "model_type": "fgsm_adversarial",
@@ -263,13 +282,17 @@ def main():
             }
         }
 
+        # save last checkpoint
         torch.save(checkpoint, SAVE_LAST_AS)
 
+        # save best checkpoint
         if test_acc > best_acc:
             best_acc = test_acc
             torch.save(checkpoint, SAVE_BEST_AS)
+
             print(f"New best saved: {SAVE_BEST_AS.name} (test_acc={best_acc*100:.2f}%)")
 
+        # store epoch results
         history.append({
             "epoch": epoch,
             "train_loss": train_loss,
@@ -281,6 +304,7 @@ def main():
             "seconds": seconds
         })
 
+        # save training log
         LOG_PATH.write_text(json.dumps(history, indent=2))
 
     print(f"\nDone. Best test accuracy: {best_acc*100:.2f}%")
@@ -289,5 +313,6 @@ def main():
     print(f"Log: {LOG_PATH}")
 
 
+# start the script
 if __name__ == "__main__":
     main()

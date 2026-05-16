@@ -11,6 +11,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 
+# set random seed for reproducible results
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
@@ -20,15 +21,20 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
+# make model name safe for saving
 def safe_name(name):
     name = name.strip()
     name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+
     return name if name else "custom_baseline"
 
 
+# cnn model used for cifar-10
 class CIFAR_CNN(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
+
+        # feature layers
         self.features = nn.Sequential(
             nn.Conv2d(3, 32, 3, padding=1),
             nn.BatchNorm2d(32),
@@ -46,6 +52,7 @@ class CIFAR_CNN(nn.Module):
             nn.MaxPool2d(2),
         )
 
+        # classification layers
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Linear(128 * 4 * 4, 256),
@@ -54,10 +61,12 @@ class CIFAR_CNN(nn.Module):
             nn.Linear(256, num_classes),
         )
 
+    # forward pass
     def forward(self, x):
         return self.classifier(self.features(x))
 
 
+# train model for one epoch
 def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
 
@@ -70,24 +79,18 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
         y = y.to(device)
 
         optimizer.zero_grad(set_to_none=True)
-
         logits = model(x)
-
         loss = criterion(logits, y)
-
         loss.backward()
-
         optimizer.step()
-
         total_loss += loss.item() * x.size(0)
-
         correct += (logits.argmax(1) == y).sum().item()
-
         total += x.size(0)
 
     return total_loss / total, correct / total
 
 
+# evaluate model on test data
 @torch.no_grad()
 def evaluate(model, loader, criterion, device):
     model.eval()
@@ -113,6 +116,7 @@ def evaluate(model, loader, criterion, device):
     return total_loss / total, correct / total
 
 
+# read command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="Train baseline CNN on CIFAR-10")
 
@@ -162,12 +166,16 @@ def parse_args():
 
 
 def main():
+    # get settings from command line
     args = parse_args()
 
+    # clean model name
     args.name = safe_name(args.name)
 
+    # set seed
     set_seed(args.seed)
 
+    # use gpu if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("Device:", device)
@@ -179,9 +187,11 @@ def main():
     print(f"Weight decay: {args.weight_decay}")
     print(f"Seed: {args.seed}")
 
+    # cifar-10 normalisation values
     mean = (0.4914, 0.4822, 0.4465)
     std = (0.2470, 0.2435, 0.2616)
 
+    # training transform with augmentation
     train_tfms = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
@@ -189,11 +199,13 @@ def main():
         transforms.Normalize(mean, std),
     ])
 
+    # test transform without augmentation
     test_tfms = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ])
 
+    # load cifar-10 training set
     trainset = torchvision.datasets.CIFAR10(
         root="./data",
         train=True,
@@ -201,6 +213,7 @@ def main():
         transform=train_tfms
     )
 
+    # load cifar-10 test set
     testset = torchvision.datasets.CIFAR10(
         root="./data",
         train=False,
@@ -208,6 +221,7 @@ def main():
         transform=test_tfms
     )
 
+    # training data loader
     trainloader = DataLoader(
         trainset,
         batch_size=args.batch_size,
@@ -216,6 +230,7 @@ def main():
         pin_memory=torch.cuda.is_available()
     )
 
+    # test data loader
     testloader = DataLoader(
         testset,
         batch_size=args.batch_size,
@@ -224,23 +239,27 @@ def main():
         pin_memory=torch.cuda.is_available()
     )
 
+    # create model
     model = CIFAR_CNN().to(device)
 
+    # loss function
     criterion = nn.CrossEntropyLoss()
 
+    # optimiser
     optimizer = optim.Adam(
         model.parameters(),
         lr=args.lr,
         weight_decay=args.weight_decay
     )
 
+    # create custom model folder
     custom_dir = "custom_train"
     os.makedirs(custom_dir, exist_ok=True)
 
     best_path = os.path.join(custom_dir, f"{args.name}.pt")
-
     best_acc = 0.0
 
+    # training loop
     for epoch in range(1, args.epochs + 1):
         train_loss, train_acc = train_one_epoch(
             model,
@@ -263,6 +282,7 @@ def main():
             f"test loss {test_loss:.4f} acc {test_acc*100:.2f}%"
         )
 
+        # save best model
         if test_acc > best_acc:
             best_acc = test_acc
 
@@ -288,5 +308,6 @@ def main():
     print(f"Saved custom model to: {best_path}")
 
 
+# start the script
 if __name__ == "__main__":
     main()

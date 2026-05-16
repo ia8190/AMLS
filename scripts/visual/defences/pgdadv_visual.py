@@ -165,7 +165,7 @@ def main():
 
     # Custom model mode:
     # sys.argv[3] replaces the baseline model only.
-    # The defence model still uses the pre-trained PGD defence checkpoint.
+    # The defence model still uses the pre trained PGD defence checkpoint.
     if len(sys.argv) > 3:
         BASELINE_CKPT = Path(sys.argv[3])
 
